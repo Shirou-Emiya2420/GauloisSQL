@@ -37,7 +37,6 @@ INNER JOIN composer c ON p.id_potion = c.id_potion
 INNER JOIN ingredient i ON c.id_ingredient = i.id_ingredient
 GROUP BY nom_potion
 ORDER BY cout_tt DESC;
-/* Resultat plus cohérant sans qte dans le doute je met les deux */
 
 /* 7 */
 SELECT nom_ingredient ni, cout_ingredient ic, qte q
@@ -92,3 +91,103 @@ FROM casque c
 INNER JOIN type_casque ct ON c.id_type_casque = ct.id_type_casque
 GROUP BY nom_type_casque
 ORDER BY total_prix ASC;
+
+/* 12 */
+SELECT nom_potion np
+FROM potion p
+INNER JOIN composer c ON c.id_potion = p.id_potion
+INNER JOIN ingredient i ON c.id_ingredient = i.id_ingredient
+WHERE i.nom_ingredient = "Poisson frais";
+
+/* 13 */
+SELECT l.nom_lieu AS ln, COUNT(p.id_personnage) AS total_pp
+FROM personnage p
+INNER JOIN lieu l ON l.id_lieu = p.id_lieu
+WHERE l.nom_lieu != 'Village gaulois'
+GROUP BY l.nom_lieu
+HAVING total_pp = (
+    SELECT MAX(sous.total)
+    FROM (
+        SELECT COUNT(p2.id_personnage) AS total
+        FROM personnage p2
+        INNER JOIN lieu l2 ON l2.id_lieu = p2.id_lieu
+        WHERE l2.nom_lieu != 'Village gaulois'
+        GROUP BY l2.nom_lieu
+    ) sous
+);
+
+/* 14 */
+SELECT nom_personnage pn
+FROM personnage p
+LEFT JOIN boire b ON b.id_personnage = p.id_personnage
+WHERE b.id_potion IS NULL;
+
+/* 15 */
+SELECT p.nom_personnage AS pn
+FROM personnage p
+WHERE p.id_personnage NOT IN (
+  SELECT ab.id_personnage
+  FROM autoriser_boire ab
+  INNER JOIN potion po ON ab.id_potion = po.id_potion
+  WHERE po.nom_potion = 'Magique'
+);
+
+/* A. */
+INSERT INTO personnage(nom_personnage, adresse_personnage, id_specialite, id_lieu)
+VALUE ("Champdeblix", "Ferme Hantassion", 12, 6);
+
+SELECT * FROM personnage WHERE nom_personnage = "Champdeblix";
+
+/* B */
+INSERT INTO autoriser_boire(id_potion, id_personnage)
+VALUE (1, 12);
+
+SELECT * FROM autoriser_boire WHERE id_personnage = 12;
+
+/* C */
+DELETE FROM casque
+WHERE id_type_casque = (
+  SELECT id_type_casque FROM type_casque WHERE nom_type_casque = 'Grec'
+)
+AND id_casque NOT IN (
+  SELECT DISTINCT id_casque FROM prendre_casque
+);
+
+SELECT *
+FROM casque
+WHERE id_type_casque = (
+  SELECT id_type_casque FROM type_casque WHERE nom_type_casque = 'Grec'
+)
+AND id_casque NOT IN (
+  SELECT DISTINCT id_casque FROM prendre_casque
+);
+
+
+/* D */
+UPDATE personnage
+SET id_lieu =  9, adresse_personnage = "prison"
+WHERE nom_personnage = "Zérozérosix";
+
+/* E */
+DELETE FROM composer
+WHERE id_potion = (
+  SELECT id_potion FROM potion WHERE nom_potion = 'Soupe'
+)
+AND id_ingredient = (
+  SELECT id_ingredient FROM ingredient WHERE nom_ingredient = 'Persil'
+);
+
+/* F */
+UPDATE prendre_casque
+SET id_casque = (
+  SELECT id_casque FROM casque WHERE nom_casque = 'Weisenau'
+)
+WHERE id_casque = (
+  SELECT id_casque FROM casque WHERE nom_casque = 'Ostrogoth'
+)
+AND id_personnage = (
+  SELECT id_personnage FROM personnage WHERE nom_personnage = 'Obélix'
+)
+AND id_bataille = (
+  SELECT id_bataille FROM bataille WHERE nom_bataille = 'Attaque de la banque postale'
+);
