@@ -20,7 +20,7 @@ ORDER BY nl, np;
 /* 4 */
 SELECT COUNT(id_personnage) AS nb_pers, nom_specialite ns
 FROM personnage p
-INNER JOIN specialite s ON p.id_specialite = s.id_specialite
+LEFT JOIN specialite s ON p.id_specialite = s.id_specialite
 GROUP BY ns
 ORDER BY nb_pers DESC;
 
@@ -28,15 +28,15 @@ ORDER BY nb_pers DESC;
 SELECT nom_bataille bn, DATE_FORMAT(date_bataille, '%d/%m/%Y') bd, nom_lieu ln
 FROM bataille b
 INNER JOIN lieu l ON b.id_lieu = l.id_lieu
-ORDER BY date_bataille DESC;
+ORDER BY YEAR(b.date_bataille) ASC, MONTH(b.date_bataille) DESC, DAY(b.date_bataille) DESC;
 
 /* 6 */
-SELECT nom_potion pn, SUM(cout_ingredient * qte) AS cout_tt
+SELECT p.nom_potion, SUM(i.cout_ingredient * c.qte) AS cout_potion
 FROM potion p
-INNER JOIN composer c ON p.id_potion = c.id_potion
-INNER JOIN ingredient i ON c.id_ingredient = i.id_ingredient
-GROUP BY nom_potion
-ORDER BY cout_tt DESC;
+LEFT JOIN composer c ON c.id_potion = p.id_potion
+LEFT JOIN ingredient i ON c.id_ingredient = i.id_ingredient
+GROUP BY p.id_potion
+ORDER BY cout_potion DESC;
 
 /* 7 */
 SELECT nom_ingredient ni, cout_ingredient ic, qte q
@@ -46,21 +46,18 @@ INNER JOIN ingredient i ON c.id_ingredient = i.id_ingredient
 WHERE nom_potion = "Santé";
 
 /* 8 */
-SELECT per.nom_personnage, SUM(pc.qte) AS total_casques
-FROM prendre_casque pc
-INNER JOIN personnage per ON pc.id_personnage = per.id_personnage
-INNER JOIN bataille b ON pc.id_bataille = b.id_bataille
-WHERE b.nom_bataille = 'Bataille du village gaulois'
-GROUP BY per.id_personnage, per.nom_personnage
-HAVING total_casques = (
-  SELECT MAX(sous.total)
-  FROM (
-    SELECT SUM(pc2.qte) AS total
-    FROM prendre_casque pc2
-    INNER JOIN bataille b2 ON pc2.id_bataille = b2.id_bataille
-    WHERE b2.nom_bataille = 'Bataille du village gaulois'
-    GROUP BY pc2.id_personnage
-  ) sous
+SELECT p.nom_personnage, SUM(pc.qte) AS nb_casques
+FROM personnage p, bataille b, prendre_casque pc
+WHERE p.id_personnage = pc.id_personnage
+AND pc.id_bataille = b.id_bataille
+AND b.nom_bataille = 'Bataille du village gaulois'
+GROUP BY p.id_personnage
+HAVING nb_casques >= ALL (
+    SELECT SUM(pc.qte)
+    FROM prendre_casque pc, bataille b
+    WHERE b.id_bataille = pc.id_bataille
+    AND b.nom_bataille = 'Bataille du village gaulois'
+    GROUP BY pc.id_personnage
 );
 
 /* 9 */
@@ -71,26 +68,23 @@ GROUP BY np
 ORDER BY p_bu ASC;
 
 /* 10 */
-SELECT b.nom_bataille AS bn, SUM(pc.qte) AS total_qte
-FROM bataille b
-INNER JOIN prendre_casque pc ON b.id_bataille = pc.id_bataille
-GROUP BY b.nom_bataille
-HAVING total_qte = (
-    SELECT MAX(sous.total)
-    FROM(
-        SELECT SUM(pc2.qte) AS total
-        FROM prendre_casque pc2
-        INNER JOIN bataille b2 ON pc2.id_bataille = b2.id_bataille
-        GROUP BY b2.nom_bataille
-    )sous
+SELECT b.nom_bataille, SUM(pc.qte) AS nb_casques
+FROM bataille b, prendre_casque pc
+WHERE b.id_bataille = pc.id_bataille
+GROUP BY b.id_bataille
+HAVING nb_casques >= ALL (
+    SELECT SUM(pc.qte)
+    FROM bataille b, prendre_casque pc
+    WHERE b.id_bataille = pc.id_bataille
+    GROUP BY b.id_bataille
 )
 
 /* 11 */
-SELECT nom_type_casque ctn, COUNT(id_casque) AS total_cas, SUM(cout_casque) AS total_prix
-FROM casque c 
-INNER JOIN type_casque ct ON c.id_type_casque = ct.id_type_casque
-GROUP BY nom_type_casque
-ORDER BY total_prix ASC;
+SELECT COUNT(c.id_casque) AS nb_casques, tc.nom_type_casque, SUM(c.cout_casque) AS total
+FROM type_casque tc
+LEFT JOIN casque c ON tc.id_type_casque = c.id_type_casque
+GROUP BY tc.id_type_casque
+ORDER BY nb_casques DESC
 
 /* 12 */
 SELECT nom_potion np
@@ -100,20 +94,17 @@ INNER JOIN ingredient i ON c.id_ingredient = i.id_ingredient
 WHERE i.nom_ingredient = "Poisson frais";
 
 /* 13 */
-SELECT l.nom_lieu AS ln, COUNT(p.id_personnage) AS total_pp
-FROM personnage p
-INNER JOIN lieu l ON l.id_lieu = p.id_lieu
-WHERE l.nom_lieu != 'Village gaulois'
-GROUP BY l.nom_lieu
-HAVING total_pp = (
-    SELECT MAX(sous.total)
-    FROM (
-        SELECT COUNT(p2.id_personnage) AS total
-        FROM personnage p2
-        INNER JOIN lieu l2 ON l2.id_lieu = p2.id_lieu
-        WHERE l2.nom_lieu != 'Village gaulois'
-        GROUP BY l2.nom_lieu
-    ) sous
+SELECT l.nom_lieu, COUNT(p.id_personnage) AS nb
+FROM personnage p, lieu l
+WHERE p.id_lieu = l.id_lieu
+AND l.nom_lieu != 'Village gaulois'
+GROUP BY l.id_lieu
+HAVING nb >= ALL (
+    SELECT COUNT(p.id_personnage)
+    FROM personnage p, lieu l
+    WHERE p.id_lieu = l.id_lieu
+    AND l.nom_lieu != 'Village gaulois'
+    GROUP BY l.id_lieu
 );
 
 /* 14 */
@@ -133,24 +124,32 @@ WHERE p.id_personnage NOT IN (
 );
 
 /* A. */
-INSERT INTO personnage(nom_personnage, adresse_personnage, id_specialite, id_lieu)
-VALUE ("Champdeblix", "Ferme Hantassion", 12, 6);
+INSERT INTO personnage (nom_personnage, adresse_personnage, id_lieu, id_specialite)
+VALUES (
+    'Champdeblix',
+    'Ferme Hantassion',
+    (SELECT id_lieu FROM lieu WHERE nom_lieu = 'Rotomagus'),
+    (SELECT id_specialite FROM specialite WHERE nom_specialite = 'Agriculteur')
+);
 
 SELECT * FROM personnage WHERE nom_personnage = "Champdeblix";
 
 /* B */
-INSERT INTO autoriser_boire(id_potion, id_personnage)
-VALUE (1, 12);
+INSERT INTO autoriser_boire (id_potion, id_personnage)
+VALUES (
+    (SELECT id_potion FROM potion WHERE nom_potion = 'Magique'),
+    (SELECT id_personnage FROM personnage WHERE nom_personnage = 'Bonemine')
+);
 
 SELECT * FROM autoriser_boire WHERE id_personnage = 12;
 
 /* C */
 DELETE FROM casque
 WHERE id_type_casque = (
-  SELECT id_type_casque FROM type_casque WHERE nom_type_casque = 'Grec'
+    SELECT id_type_casque FROM type_casque WHERE nom_type_casque = 'Grec'
 )
 AND id_casque NOT IN (
-  SELECT DISTINCT id_casque FROM prendre_casque
+    SELECT id_casque FROM prendre_casque
 );
 
 SELECT *
@@ -165,8 +164,9 @@ AND id_casque NOT IN (
 
 /* D */
 UPDATE personnage
-SET id_lieu =  9, adresse_personnage = "prison"
-WHERE nom_personnage = "Zérozérosix";
+SET adresse_personnage = 'Prison',
+    id_lieu = (SELECT id_lieu FROM lieu WHERE nom_lieu = 'Condate')
+WHERE nom_personnage = 'Zérozérosix';
 
 /* E */
 DELETE FROM composer
